@@ -49,7 +49,7 @@ def get_forward_headers(request: Request):
     return headers
 
 # Central request forwarder with timeout and connection error boundaries
-def forward_request(method: str, url: str, json_data=None, params=None, headers=None, timeout=5.0):
+def forward_request(method: str, url: str, json_data=None, params=None, headers=None, timeout=30.0):
     try:
         if method == "GET":
             res = requests.get(url, params=params, headers=headers, timeout=timeout)
