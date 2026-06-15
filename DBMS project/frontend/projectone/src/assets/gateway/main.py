@@ -37,6 +37,39 @@ async def log_requests(request: Request, call_next):
     logger.info(f"[{request.method}] {request.url.path} - Status: {response.status_code} - Latency: {duration:.4f}s")
     return response
 
+# ==========================================
+# HEALTH / DEBUG ENDPOINTS
+# ==========================================
+
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "Money Manager API Gateway", "version": "1.0.0"}
+
+@app.get("/debug/health")
+def debug_health():
+    """Shows configured URLs and tests connectivity to downstream services."""
+    results = {
+        "spring_boot_url": SPRING_BOOT_URL,
+        "node_service_url": NODE_SERVICE_URL,
+        "spring_boot_reachable": False,
+        "node_service_reachable": False,
+    }
+    try:
+        r = requests.get(f"{SPRING_BOOT_URL}/authservice/roles", timeout=10)
+        results["spring_boot_reachable"] = r.status_code < 500
+        results["spring_boot_status"] = r.status_code
+    except Exception as e:
+        results["spring_boot_error"] = str(e)
+    try:
+        r = requests.get(f"{NODE_SERVICE_URL}/health", timeout=15)
+        results["node_service_reachable"] = r.status_code < 500
+        results["node_service_status"] = r.status_code
+        results["node_service_response"] = r.json()
+    except Exception as e:
+        results["node_service_error"] = str(e)
+    return results
+
+
 # Header extractor utility
 def get_forward_headers(request: Request):
     headers = {}
