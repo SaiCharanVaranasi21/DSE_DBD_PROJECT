@@ -82,33 +82,50 @@ def get_forward_headers(request: Request):
     return headers
 
 # Central request forwarder with timeout and connection error boundaries
-def forward_request(method: str, url: str, json_data=None, params=None, headers=None, timeout=30.0):
-    try:
-        if method == "GET":
-            res = requests.get(url, params=params, headers=headers, timeout=timeout)
-        elif method == "POST":
-            res = requests.post(url, json=json_data, headers=headers, timeout=timeout)
-        elif method == "PUT":
-            res = requests.put(url, json=json_data, headers=headers, timeout=timeout)
-        elif method == "DELETE":
-            res = requests.delete(url, headers=headers, timeout=timeout)
-        else:
-            return {"error": "Unsupported HTTP method"}, 405
-            
+def forward_request(method: str, url: str, json_data=None, params=None, headers=None, timeout=30.0, retries=3):
+    last_data, last_code = {"error": "Gateway request failed"}, 502
+    for attempt in range(retries):
         try:
-            return res.json(), res.status_code
-        except Exception:
-            return {"text": res.text}, res.status_code
-            
-    except requests.exceptions.Timeout:
-        logger.error(f"Timeout occurred while forwarding {method} to {url}")
-        return {"error": "Gateway Timeout: Downstream service took too long to respond"}, 504
-    except requests.exceptions.ConnectionError:
-        logger.error(f"Connection error occurred while connecting to {url}")
-        return {"error": "Bad Gateway: Downstream service is unreachable"}, 502
-    except Exception as e:
-        logger.error(f"Error forwarding request: {str(e)}")
-        return {"error": f"Internal Server Error: {str(e)}"}, 500
+            if method == "GET":
+                res = requests.get(url, params=params, headers=headers, timeout=timeout)
+            elif method == "POST":
+                res = requests.post(url, json=json_data, headers=headers, timeout=timeout)
+            elif method == "PUT":
+                res = requests.put(url, json=json_data, headers=headers, timeout=timeout)
+            elif method == "DELETE":
+                res = requests.delete(url, headers=headers, timeout=timeout)
+            else:
+                return {"error": "Unsupported HTTP method"}, 405
+
+            # If 502/503/504 (service sleeping on Render free tier), wait and retry
+            if res.status_code in (502, 503, 504) and attempt < retries - 1:
+                logger.warning(f"Got {res.status_code} from {url} (attempt {attempt+1}/{retries}). Retrying in 8s...")
+                time.sleep(8)
+                continue
+
+            try:
+                return res.json(), res.status_code
+            except Exception:
+                return {"text": res.text}, res.status_code
+
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout on attempt {attempt+1} forwarding {method} to {url}")
+            last_data, last_code = {"error": "Gateway Timeout: Downstream service took too long to respond"}, 504
+            if attempt < retries - 1:
+                time.sleep(5)
+                continue
+        except requests.exceptions.ConnectionError:
+            logger.error(f"Connection error on attempt {attempt+1} connecting to {url}")
+            last_data, last_code = {"error": "Bad Gateway: Downstream service is unreachable"}, 502
+            if attempt < retries - 1:
+                time.sleep(5)
+                continue
+        except Exception as e:
+            logger.error(f"Error forwarding request: {str(e)}")
+            return {"error": f"Internal Server Error: {str(e)}"}, 500
+
+    return last_data, last_code
+
 
 # ==========================================
 # UNIFIED NEW API ENDPOINTS (/api/*)
