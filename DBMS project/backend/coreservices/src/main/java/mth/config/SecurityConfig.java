@@ -1,4 +1,4 @@
-﻿package mth.config;
+package mth.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
