@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import requests
 import time
 import logging
+import os
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -23,9 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Downstream services URL variables
-SPRING_BOOT_URL = "http://localhost:8081"
-NODE_SERVICE_URL = "http://localhost:5000"
+# Downstream services URL variables (read from environment for production)
+SPRING_BOOT_URL = os.getenv("SPRING_BOOT_URL", "http://localhost:8081")
+NODE_SERVICE_URL = os.getenv("NODE_SERVICE_URL", "http://localhost:5000")
 
 # Request logging middleware
 @app.middleware("http")
