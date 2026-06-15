@@ -1,0 +1,101 @@
+========================================================================
+MONEY GO - APPLICATION RUN GUIDE
+========================================================================
+This guide details how to launch the databases and execute the services 
+that power the Money GO personal finance platform.
+
+------------------------------------------------------------------------
+SYSTEM ARCHITECTURE REFERENCE:
+------------------------------------------------------------------------
+[React Frontend] (Port 5173)
+        ↓
+[FastAPI Gateway] (Port 8000)
+   ├───→ [Spring Boot Core Backend] (Port 8081) ───→ [PostgreSQL DB] (Port 5433)
+   └───→ [Node.js Transaction Service] (Port 5000) ─→ [MongoDB] (Port 27017)
+
+========================================================================
+STEP 1: LAUNCH THE DATABASES
+========================================================================
+
+1. PostgreSQL (Core User Data)
+   - Ensure PostgreSQL is running on port 5433.
+   - Database details:
+     * DB Name:  project1
+     * User:     postgres
+     * Password: admin123
+
+2. MongoDB (Transaction & Category Data)
+   - Ensure local MongoDB is running on default port 27017.
+   - Database name: money_manager
+
+========================================================================
+STEP 2: RUN SPRING BOOT CORE BACKEND
+========================================================================
+- Exposes user accounts, onboarding flags, roles, and budget controls on Port 8081.
+
+1. Open a terminal and navigate to:
+   cd "d:\DSE_DBD\DBMS project\backend\coreservices"
+
+2. Start the service:
+   - On Windows:
+     .\mvnw spring-boot:run
+   - On Mac/Linux or if Maven is installed globally:
+     mvn spring-boot:run
+
+========================================================================
+STEP 3: RUN NODE.JS TRANSACTION MICROSERVICE
+========================================================================
+- Exposes transaction histories and categories on Port 5000.
+- Data is persisted to MongoDB Atlas (cloud) — survives restarts.
+- The service will NOT start until MongoDB successfully connects.
+
+1. Open a new terminal and navigate to:
+   cd "d:\DSE_DBD\DBMS project\backend\transactionservice"
+
+2. (First-time only) Install node packages:
+   npm install
+
+3. Run the development server:
+   npm run dev
+   (Or use 'npm start' / 'node server.js' to run without hot-reloads)
+
+4. You should see these lines on successful startup:
+   ⏳  Connecting to MongoDB...
+   ✅  MongoDB connected successfully
+   🚀  Transaction microservice running on port 5000
+       All transactions will be persisted to MongoDB.
+
+   ⚠️  If you see "MongoDB connection FAILED" → the service exits.
+       Fix: Check your MONGO_URI in the .env file and internet connectivity.
+
+========================================================================
+STEP 4: RUN Python/FastAPI API GATEWAY
+========================================================================
+- Manages routing/forwarding between client, Java, and Node services on Port 8000.
+
+1. Open a new terminal and navigate to:
+   cd "d:\DSE_DBD\DBMS project\frontend\projectone\src\assets\gateway"
+
+2. Activate virtual environment:
+   - On Windows:
+     .\venv\Scripts\activate
+   - On Mac/Linux:
+     source venv/bin/activate
+
+3. Start the FastAPI gateway server:
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+========================================================================
+STEP 5: RUN REACT FRONTEND
+========================================================================
+- Renders the Money GO client workspace on Port 5173.
+
+1. Open a new terminal and navigate to:
+   cd "d:\DSE_DBD\DBMS project\frontend\projectone"
+
+2. Start the Vite development server:
+   npm run dev
+
+3. Open your browser and navigate to:
+   http://localhost:5173
+========================================================================

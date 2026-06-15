@@ -1,0 +1,1316 @@
+import { useState } from "react";
+import "./App.css";
+
+// Lucide Icon Component Imports
+import { 
+  Wallet, 
+  TrendingUp, 
+  CreditCard, 
+  PiggyBank, 
+  LogOut,
+  Users, 
+  DollarSign, 
+  AlertCircle,
+  Shield, 
+  Settings, 
+  Database, 
+  Activity, 
+  Server, 
+  AlertTriangle, 
+  CheckCircle,
+  PlusCircle,
+  BarChart2,
+  List,
+  User,
+  Edit2,
+  Check,
+  Calendar,
+  FileText
+} from 'lucide-react';
+
+// Static Asset Media Imports (Validated Working Paths Only)
+import logoImg from "./assets/icon.jpeg";
+import growthImg from "./assets/image107.png";
+import analyticsImg from "./assets/image108.png";
+import savingsImg from "./assets/savings.png";
+
+// API Configuration Mapping
+const API_CONFIG = {
+  AUTH_BASE: "http://localhost:8000/authservice",
+  FINANCE_BASE: "http://localhost:8080/financial",
+};
+
+const money = (value) => `Rs. ${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const roleMeta = {
+  1: {
+    title: "User Dashboard",
+    eyebrow: "Personal finance",
+    heading: "Your money command center",
+    copy: "Track balances, spending movement, and savings habits from one calm workspace.",
+    navigation: [
+      { name: "Overview", icon: Activity },
+      { name: "Transactions", icon: List },
+      { name: "Budgets", icon: Wallet },
+      { name: "Reports", icon: BarChart2 },
+      { name: "Settings", icon: Settings },
+      { name: "Profile", icon: User }
+    ]
+  },
+  2: {
+    title: "Admin Dashboard",
+    eyebrow: "Platform operations",
+    heading: "System control room",
+    copy: "Monitor users, infrastructure health, storage pressure, and security alerts.",
+    navigation: [
+      { name: "System Overview", icon: Activity },
+      { name: "User Management", icon: Users },
+      { name: "Database Control", icon: Database },
+      { name: "Infrastructure", icon: Server },
+      { name: "Global Settings", icon: Settings }
+    ]
+  },
+  3: {
+    title: "Manager Dashboard",
+    eyebrow: "Team finance",
+    heading: "Approvals and budget flow",
+    copy: "Review requests, compare team budgets, and keep spending decisions moving.",
+    navigation: [
+      { name: "Manager Pulse", icon: Activity },
+      { name: "Team Overview", icon: Users },
+      { name: "Budget Requests", icon: DollarSign },
+      { name: "Pending Alerts", icon: AlertCircle }
+    ]
+  },
+};
+
+const StatCard = ({ icon: Icon, label, value, note, tone = "teal", trend }) => (
+  <div className="stats-card">
+    <div className="card-header">
+      <div className={`icon-wrapper bg-${tone}-light`}>
+        <Icon className={`icon-md text-${tone}`} />
+      </div>
+      {trend && <span className={`trend-tag ${trend.includes("-") ? "trend-down" : "trend-up"}`}>{trend}</span>}
+    </div>
+    <p className="card-label">{label}</p>
+    <p className="card-value">{value}</p>
+    {note && <p className="card-note">{note}</p>}
+  </div>
+);
+
+export function App({ initialPage = "signin" }) {
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Form Field Interactive Local States
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState(""); 
+  const [fullName, setFullName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [dob, setDob] = useState("");
+  const [currency, setCurrency] = useState("INR");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+
+  // --- ONDEMAND USER SETUP PROCESS STATES (ROLE 1) ---
+  const [showFinancesSetup, setShowFinancesSetup] = useState(false);
+  const [showPersonalizationPage, setShowPersonalizationPage] = useState(false);
+  
+  // Baseline Initial Account Setup Hooks
+  const [monthlyIncome, setMonthlyIncome] = useState("50000");
+  const [targetSavingsGoal, setTargetSavingsGoal] = useState("10000");
+
+  // Personalization Hooks
+  const [profession, setProfession] = useState("");
+  const [salaryFrequency, setSalaryFrequency] = useState("Monthly");
+  const [financialGoal, setFinancialGoal] = useState("");
+  const [savingsPercentage, setSavingsPercentage] = useState("");
+  const [fixedExpenses, setFixedExpenses] = useState("");
+  const [alertThreshold, setAlertThreshold] = useState("80");
+  const [dependents, setDependents] = useState("");
+  const [emergencyFund, setEmergencyFund] = useState("Yes");
+  
+  // Expanded 6 Categorized Expense Budgets Set By User
+  const [housingExpense, setHousingExpense] = useState("15000");
+  const [foodExpense, setFoodExpense] = useState("8000");
+  const [travelExpense, setTravelExpense] = useState("4000");
+  const [utilitiesExpense, setUtilitiesExpense] = useState("5000");
+  const [entertainmentExpense, setEntertainmentExpense] = useState("3000");
+  const [savingsExpense, setSavingsExpense] = useState("10000");
+
+  // Profile Edit Buffer States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileDob, setProfileDob] = useState("");
+  const [profileCurrency, setProfileCurrency] = useState("");
+
+  // Application Display Tab Index state Tracker
+  const [activeTab, setActiveTab] = useState(0);
+  const [isEditingBudget, setIsEditingBudget] = useState(false);
+
+  // Live Trackers for Additions made inside Dashboard
+  const [userTransactions, setUserTransactions] = useState([
+    { name: "Freelance Design Deliverable", amount: 12000.00, date: "May 12, 2026", type: "income", category: "Savings" },
+    { name: "Monthly Flat Maintenance", amount: 4500.00, date: "May 10, 2026", type: "expense", category: "Housing" },
+    { name: "Supermarket Restock", amount: 2350.00, date: "May 08, 2026", type: "expense", category: "Food" },
+    { name: "Fuel Refill", amount: 1200.00, date: "May 05, 2026", type: "expense", category: "Transport" }
+  ]);
+  
+  // Tracks Real-time Spent Amounts across all 6 categories
+  const [dynamicCategoryExpenses, setDynamicCategoryExpenses] = useState({
+    Housing: 4500,
+    Food: 2350,
+    Transport: 1200,
+    Utilities: 0,
+    Entertainment: 0,
+    Savings: 0
+  });
+
+  // Settings Configuration states
+  const [enableNotifications, setEnableNotifications] = useState(true);
+  const [enableTwoFactor, setEnableTwoFactor] = useState(false);
+  const [themeMode, setThemeMode] = useState("light");
+
+  // Inline Logging Form Field Hooks
+  const [logExpenseName, setLogExpenseName] = useState("");
+  const [logExpenseAmount, setLogExpenseAmount] = useState("");
+  const [logExpenseCategory, setLogExpenseCategory] = useState("Food");
+  const [logTransactionType, setLogTransactionType] = useState("expense");
+
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    setProfileName(fullName || "Valued User");
+    setProfilePhone(phoneNumber || "+91 9876543210");
+    setProfileDob(dob || "2000-01-01");
+    setProfileCurrency(currency || "INR");
+
+    const parsedRole = Number(role);
+
+    try {
+      const response = await fetch(`${API_CONFIG.AUTH_BASE}/signin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: email,
+          password,
+          role: parsedRole,
+        }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.jwt) {
+        localStorage.setItem("jwtToken", data.jwt);
+        localStorage.setItem("userId", data.userId); 
+        setIsLoggedIn(true);
+
+        if (parsedRole === 1) {
+          // Logic: Only show setup if backend says they haven't finished it
+          // setupComplete should be part of your JWT/Login response
+          const needsSetup = data.setupComplete === false; 
+          setShowFinancesSetup(needsSetup);
+          setShowPersonalizationPage(false);
+        } else {
+          setShowFinancesSetup(false);
+          setShowPersonalizationPage(false);
+        }
+      } else {
+        alert(data.message || "Sign-in failed");
+      }
+    } catch (error) {
+      console.error("Sign-in error:", error);
+      alert("Connection failed. Check if API Gateway is running on port 8000.");
+    }
+  };
+
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+    if (!acceptTerms) {
+      alert("You must agree to the Terms & Conditions to proceed.");
+      return;
+    }
+    try {
+      const response = await fetch(`${API_CONFIG.AUTH_BASE}/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullname: fullName,
+          email,
+          password,
+          role: Number(role),
+          phone: phoneNumber,
+          dateOfBirth: dob,
+          preferredCurrency: currency
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.code === 200) {
+        alert(data.message);
+        setProfileName(fullName);
+        setProfilePhone(phoneNumber);
+        setProfileDob(dob);
+        setProfileCurrency(currency);
+        setCurrentPage("signin");
+      } else {
+        alert(data.message || "Sign-up failed");
+      }
+    } catch (error) {
+      console.error("Sign-up error:", error);
+      setProfileName(fullName);
+      setProfilePhone(phoneNumber);
+      setProfileDob(dob);
+      setProfileCurrency(currency);
+      alert("Proceeding with local testing structural environment profile routing context.");
+      setCurrentPage("signin");
+    }
+  };
+
+  const handleSetupSubmit = async (e) => {
+
+  e.preventDefault();
+
+  try {
+    const userId = Number(localStorage.getItem("userId"));
+
+    await fetch(`${API_CONFIG.FINANCE_BASE}/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("jwtToken")}`
+      },
+
+      body: JSON.stringify({
+        userId: userId,
+
+        monthlyIncome,
+
+        savingsGoal: targetSavingsGoal,
+
+        housingBudget: housingExpense,
+
+        foodBudget: foodExpense,
+
+        travelBudget: travelExpense,
+
+        utilitiesBudget: utilitiesExpense,
+
+        entertainmentBudget: entertainmentExpense,
+
+        savingsInvestment: savingsExpense,
+
+      }),
+
+    });
+
+    setShowFinancesSetup(false);
+
+    setShowPersonalizationPage(true);
+
+  } catch (error) {
+
+    console.log(error);
+
+    setShowFinancesSetup(false);
+
+    setShowPersonalizationPage(true);
+
+  }
+
+};
+
+  const handleAddLiveExpense = (e) => {
+    e.preventDefault();
+    if (!logExpenseName || !logExpenseAmount) {
+      alert("Please provide transaction labels and monetary entries.");
+      return;
+    }
+
+    const cost = Number(logExpenseAmount);
+    
+    setUserTransactions(prev => [
+      { name: logExpenseName, amount: cost, date: "Just Now", type: logTransactionType, category: logExpenseCategory },
+      ...prev
+    ]);
+
+    if (logTransactionType === "expense") {
+      setDynamicCategoryExpenses(prev => ({
+        ...prev,
+        [logExpenseCategory]: prev[logExpenseCategory] + cost
+      }));
+    }
+
+    setLogExpenseName("");
+    setLogExpenseAmount("");
+  };
+
+  const handleSaveProfile = (e) => {
+    e.preventDefault();
+    setIsEditingProfile(false);
+    alert("Profile configurations written successfully into secure context.");
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setEmail("");
+    setPassword("");
+    setRole("");
+    setShowFinancesSetup(false);
+    setShowPersonalizationPage(false);
+  };
+
+  const switchAuthPage = (page) => {
+    setCurrentPage(page);
+  };
+
+  // --- RENDER BLOCK: STEP 1 - FINANCIAL WORKSPACE SETUP ---
+  if (isLoggedIn && Number(role) === 1 && showFinancesSetup) {
+    return (
+      <div className="setup-fullscreen-wrapper">
+        <div className="setup-card">
+          <div className="setup-header">
+            <img src={logoImg} alt="Money Manager Logo" className="setup-logo" />
+            <h2>Tailor Your Financial Workspace</h2>
+            <p>Let's map out your income baselines and target boundaries before building your control center.</p>
+          </div>
+          <form onSubmit={handleSetupSubmit}>
+            <div className="setup-field">
+              <label>Monthly Income Baseline (Rs.)</label>
+              <input
+                type="number"
+                value={monthlyIncome}
+                onChange={(e) => setMonthlyIncome(e.target.value)}
+              />
+            </div>
+
+            <div className="setup-field">
+              <label>Target Financial Savings Goal (Rs.)</label>
+              <input
+                type="number"
+                value={targetSavingsGoal}
+                onChange={(e) => setTargetSavingsGoal(e.target.value)}
+              />
+            </div>
+
+            <div className="setup-field">
+              <label>Housing Budget Cap (Rs.)</label>
+              <input
+                type="number"
+                value={housingExpense}
+                onChange={(e) => setHousingExpense(e.target.value)}
+              />
+            </div>
+
+            <div className="setup-field">
+              <label>Food & Groceries Budget Cap (Rs.)</label>
+              <input
+                type="number"
+                value={foodExpense}
+                onChange={(e) => setFoodExpense(e.target.value)}
+              />
+            </div>
+
+            <div className="setup-field">
+              <label>Commute & Travel Budget Cap (Rs.)</label>
+              <input
+                type="number"
+                value={travelExpense}
+                onChange={(e) => setTravelExpense(e.target.value)}
+              />
+            </div>
+
+            <div className="setup-field">
+              <label>Household Utilities Budget Cap (Rs.)</label>
+              <input
+                type="number"
+                value={utilitiesExpense}
+                onChange={(e) => setUtilitiesExpense(e.target.value)}
+              />
+            </div>
+
+            <div className="setup-field">
+              <label>Entertainment Budget Cap (Rs.)</label>
+              <input
+                type="number"
+                value={entertainmentExpense}
+                onChange={(e) => setEntertainmentExpense(e.target.value)}
+              />
+            </div>
+
+            <div className="setup-field">
+              <label>Savings Investments Allocation (Rs.)</label>
+              <input
+                type="number"
+                value={savingsExpense}
+                onChange={(e) => setSavingsExpense(e.target.value)}
+              />
+            </div> 
+
+            <button type="submit" className="setup-submit-btn">
+              Continue To Personalization
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER BLOCK: STEP 2 - FINANCIAL PERSONALIZATION SURVEY ---
+  if (isLoggedIn && Number(role) === 1 && !showFinancesSetup && showPersonalizationPage) {
+    return (
+      <div className="setup-fullscreen-wrapper">
+        <div className="setup-card">
+          <div className="setup-header">
+            <img src={logoImg} alt="" className="setup-logo" />
+            <h2>Personalize Your Financial Intelligence</h2>
+            <p>Configure your financial lifestyle preferences for smarter analytics and insights.</p>
+          </div>
+
+          <form
+            className="setup-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setShowPersonalizationPage(false);
+              setActiveTab(0);
+            }}
+          >
+            <div className="setup-field">
+              <label>Profession</label>
+              <select value={profession} onChange={(e) => setProfession(e.target.value)}>
+                <option value="">Select Profession</option>
+                <option>Student</option>
+                <option>Employee</option>
+                <option>Freelancer</option>
+                <option>Business Owner</option>
+              </select>
+            </div>
+
+            <div className="setup-field">
+              <label>Salary Frequency</label>
+              <select value={salaryFrequency} onChange={(e) => setSalaryFrequency(e.target.value)}>
+                <option>Monthly</option>
+                <option>Weekly</option>
+                <option>Freelance / Irregular</option>
+              </select>
+            </div>
+
+            <div className="setup-field">
+              <label>Main Financial Goal</label>
+              <select value={financialGoal} onChange={(e) => setFinancialGoal(e.target.value)}>
+                <option value="">Select Goal</option>
+                <option>Save Money</option>
+                <option>Emergency Fund</option>
+                <option>Investment Growth</option>
+                <option>Travel</option>
+                <option>House Purchase</option>
+              </select>
+            </div>
+
+            <div className="setup-field">
+              <label>Savings Goal (%)</label>
+              <input type="number" value={savingsPercentage} onChange={(e) => setSavingsPercentage(e.target.value)} placeholder="20" />
+            </div>
+
+            <div className="setup-field">
+              <label>Fixed Monthly Expenses</label>
+              <input type="number" value={fixedExpenses} onChange={(e) => setFixedExpenses(e.target.value)} placeholder="10000" />
+            </div>
+
+            <div className="setup-field">
+              <label>Overspending Alert Threshold</label>
+              <select value={alertThreshold} onChange={(e) => setAlertThreshold(e.target.value)}>
+                <option>70</option>
+                <option>80</option>
+                <option>90</option>
+              </select>
+            </div>
+
+            <div className="setup-field">
+              <label>Dependents Count</label>
+              <input type="number" value={dependents} onChange={(e) => setDependents(e.target.value)} placeholder="2" />
+            </div>
+
+            <div className="setup-field">
+              <label>Emergency Fund Available?</label>
+              <select value={emergencyFund} onChange={(e) => setEmergencyFund(e.target.value)}>
+                <option>Yes</option>
+                <option>No</option>
+              </select>
+            </div>
+
+            <button type="submit" className="setup-submit-btn">
+              Continue To Personalization
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER BLOCK: STEP 3 - INTERACTIVE USER DASHBOARD SYSTEM ---
+  if (isLoggedIn && Number(role) === 1 && !showFinancesSetup && !showPersonalizationPage) {
+    const meta = roleMeta[1];
+
+    // Compute operational financial balances dynamically
+    const overallExpensesLogged = userTransactions
+      .filter(t => t.type === "expense")
+      .reduce((sum, current) => sum + current.amount, 0);
+
+    const overallIncomeLogged = userTransactions
+      .filter(t => t.type === "income")
+      .reduce((sum, current) => sum + current.amount, 0);
+
+    const availableNetBalance = overallIncomeLogged - overallExpensesLogged;
+    
+    const budgetLimitsMap = {
+      Housing: Number(housingExpense) || 0,
+      Food: Number(foodExpense) || 0,
+      Transport: Number(travelExpense) || 0,
+      Utilities: Number(utilitiesExpense) || 0,
+      Entertainment: Number(entertainmentExpense) || 0,
+      Savings: Number(savingsExpense) || 0,
+    };
+
+    const aggregatedAllocatedBudgets = Object.values(budgetLimitsMap).reduce((a, b) => a + b, 0);
+
+    return (
+      <div className="dashboard-container app-dashboard">
+        <aside className="dashboard-sidebar">
+          <div className="sidebar-brand">
+            <img src={logoImg} alt="Money Manager logo" />
+            <div>
+              <strong>Money Manager</strong>
+              <span>Finance OS</span>
+            </div>
+          </div>
+
+          <nav className="sidebar-nav" aria-label="Dashboard navigation">
+            {meta.navigation.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <button 
+                  key={item.name} 
+                  className={index === activeTab ? "nav-item active" : "nav-item"} 
+                  onClick={() => setActiveTab(index)}
+                  type="button"
+                >
+                  <Icon className="icon-sm" />
+                  <span>{item.name}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="sidebar-brief">
+            <span>Workspace Health</span>
+            <strong>98.4%</strong>
+            <p>All core engines are active and syncing live.</p>
+          </div>
+        </aside>
+
+        <div className="dashboard-workspace">
+          <header className="dashboard-header">
+            <div className="header-content">
+              <div>
+                <span className="dashboard-eyebrow">{meta.navigation[activeTab].name} Panel</span>
+                <h1 className="welcome-title">{meta.heading}</h1>
+                <p className="welcome-subtitle">Account Holder: <strong>{profileName}</strong> | Currency Room: {profileCurrency}</p>
+              </div>
+              <div className="header-actions">
+                <span className="user-role-tag">
+                  <Shield className="icon-sm inline-icon" /> {meta.title}
+                </span>
+                <button onClick={handleLogout} className="logout-btn">
+                  <LogOut className="icon-sm" /> Logout
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="dashboard-main">
+            
+            {/* TAB VIEW 0: OVERVIEW COMMAND CENTER */}
+            {activeTab === 0 && (
+              <>
+                <section className="dashboard-hero-card">
+                  <div className="hero-text-content">
+                    <span className="dashboard-eyebrow">Financial Matrix Baseline</span>
+                    <h2>Operational variables updated in real time.</h2>
+                    <p>Configured Target Savings Cap: {money(savingsExpense)} | Total Setup Budgets: {money(aggregatedAllocatedBudgets)}</p>
+                  </div>
+                  <img src={savingsImg} alt="Savings structural setup display asset" className="hero-artwork" />
+                </section>
+
+                <div className="stats-grid">
+                  <StatCard icon={Wallet} label="Live Balance Available" value={money(availableNetBalance)} note="Income minus spending entries" tone="teal" trend="+12%" />
+                  <StatCard icon={TrendingUp} label="Aggregated Inflow Matrix" value={money(overallIncomeLogged)} note="All logged items" tone="green" trend="+8%" />
+                  <StatCard icon={CreditCard} label="Aggregated Outflow Spent" value={money(overallExpensesLogged)} note="Dynamic structural tracking" tone="red" trend="-3%" />
+                  <StatCard icon={PiggyBank} label="Goal Milestone Target" value={money(savingsExpense)} note="Target bounds mapping" tone="blue" trend="+15%" />
+                </div>
+
+                <div className="panel-card live-interaction-panel">
+                  <h2 className="panel-title"><PlusCircle className="inline-icon text-teal icon-sm" /> Append Financial Ledger Transaction</h2>
+                  <form onSubmit={handleAddLiveExpense} className="live-expense-form">
+                    <div className="live-form-grid">
+                      <div className="input-group">
+                        <label className="input-group-label">Transaction Label Name</label>
+                        <input type="text" className="dashboard-panel-input" placeholder="e.g. Office Coffee, Invoicing" value={logExpenseName} onChange={(e) => setLogExpenseName(e.target.value)} required />
+                      </div>
+                      <div className="input-group">
+                        <label className="input-group-label">Transaction Type</label>
+                        <select className="dashboard-panel-select" value={logTransactionType} onChange={(e) => setLogTransactionType(e.target.value)}>
+                          <option value="expense">Debit / Outflow Expense</option>
+                          <option value="income">Credit / Inflow Income</option>
+                        </select>
+                      </div>
+                      <div className="input-group">
+                        <label className="input-group-label">Amount (Rs.)</label>
+                        <input type="number" className="dashboard-panel-input" placeholder="0.00" value={logExpenseAmount} onChange={(e) => setLogExpenseAmount(e.target.value)} required />
+                      </div>
+                      <div className="input-group">
+                        <label className="input-group-label">Allocation Track Category</label>
+                        <select className="dashboard-panel-select" value={logExpenseCategory} onChange={(e) => setLogExpenseCategory(e.target.value)}>
+                          <option value="Housing">Housing</option>
+                          <option value="Food">Food & Groceries</option>
+                          <option value="Transport">Transport & Commute</option>
+                          <option value="Utilities">Utilities</option>
+                          <option value="Entertainment">Entertainment</option>
+                          <option value="Savings">Savings & Invest</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button type="submit" className="add-expense-btn" style={{marginTop: "16px"}}>Commit Record to Ledger Engine</button>
+                  </form>
+                </div>
+
+                <div className="dashboard-grid-two-col">
+                  <div className="panel-card">
+                    <div className="panel-header">
+                      <h2 className="panel-title">Recent Ledger Items</h2>
+                      <button className="table-action-btn" onClick={() => setActiveTab(1)}>View Full Statement Screen</button>
+                    </div>
+                    <div className="transactions-list">
+                      {userTransactions.slice(0, 4).map((transaction, index) => (
+                        <div key={index} className="transaction-item">
+                          <div>
+                            <p className="transaction-name">{transaction.name}</p>
+                            <span className="category-capsule-tag">{transaction.category}</span>
+                            <span className="transaction-date" style={{marginLeft: "10px"}}>{transaction.date}</span>
+                          </div>
+                          <span className={`transaction-amount ${transaction.type === "income" ? "amount-income" : "amount-expense"}`}>
+                            {transaction.type === "income" ? `+ ${money(transaction.amount)}` : `- ${money(transaction.amount)}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="panel-card">
+                    <div className="panel-header">
+                      <h2 className="panel-title">Live Budget Threshold Tracks</h2>
+                      <button className="table-action-btn" onClick={() => setActiveTab(2)}>Modify Targets</button>
+                    </div>
+                    {Object.keys(budgetLimitsMap).map((key) => {
+                      const limit = budgetLimitsMap[key];
+                      const spent = dynamicCategoryExpenses[key] || 0;
+                      const ratio = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
+                      return (
+                        <div className="metric-row-card" key={key} style={{ marginBottom: "12px" }}>
+                          <div className="metric-header"><span>{key} Sector</span><span>{ratio}% Used</span></div>
+                          <div className="progress-bar-track"><div className="progress-bar-fill" style={{ width: `${ratio}%`, background: ratio > 85 ? "#ef4444" : "#10b981" }} /></div>
+                          <div className="metric-footer"><span>Spent: {money(spent)}</span><span>Boundary Cap: {money(limit)}</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* TAB VIEW 1: TRANSACTIONS HISTORICAL LEDGER SCREEN */}
+            {activeTab === 1 && (
+              <div className="panel-card view-container-fade">
+                <div className="panel-header border-bottom-header">
+                  <div>
+                    <h2 className="panel-title"><List className="inline-icon icon-sm text-blue" /> Comprehensive Statement Ledger</h2>
+                    <p className="panel-subtitle">Audited pipeline displaying historical asset credits and allocations.</p>
+                  </div>
+                  <span className="user-role-tag">{userTransactions.length} Total Logs Found</span>
+                </div>
+
+                <div className="table-scroll-frame">
+                  <table className="enterprise-data-table">
+                    <thead>
+                      <tr>
+                        <th>Transaction Description Label</th>
+                        <th>Sector Category</th>
+                        <th>Execution Date Timestamp</th>
+                        <th>Flow Layout Type</th>
+                        <th style={{textAlign: 'right'}}>Monetary Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userTransactions.map((t, idx) => (
+                        <tr key={idx}>
+                          <td><strong>{t.name}</strong></td>
+                          <td><span className="category-capsule-tag">{t.category}</span></td>
+                          <td className="transaction-date">{t.date}</td>
+                          <td>
+                            <span className={`flow-status-pill ${t.type === 'income' ? 'status-credit' : 'status-debit'}`}>
+                              {t.type.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{textAlign: 'right'}} className={t.type === 'income' ? 'amount-income font-semibold' : 'amount-expense font-semibold'}>
+                            {t.type === 'income' ? `+ ${money(t.amount)}` : `- ${money(t.amount)}`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB VIEW 2: BUDGET LIMIT BOUNDARIES AND ANALYTICS */}
+            {activeTab === 2 && (
+              <div className="panel-card view-container-fade">
+                <div 
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <h2 className="panel-title">
+                    <Wallet className="inline-icon icon-sm text-green" /> Resource Allocation Threshold Management
+                  </h2>
+                  <button
+                    type="button"
+                    className="profile-action-toggle-btn"
+                    onClick={() => setIsEditingBudget(!isEditingBudget)}
+                  >
+                    {isEditingBudget ? "Save Budget" : "Edit Budget"}
+                  </button>
+                </div>
+
+                <div className="budget-settings-workspace">
+                  <div className="budget-form-side">
+                    <h3>Adjust Spending Target Limits</h3>
+                    <div className="budget-fields-vertical-stack" style={{marginTop: "16px"}}>
+                      <div className="auth-field">
+                        <label>🏠 Housing Budget Cap (Rs.)</label>
+                        <input type="number" value={housingExpense} onChange={(e) => setHousingExpense(e.target.value)} disabled={!isEditingBudget} />
+                      </div>
+                      <div className="auth-field">
+                        <label>🍔 Food & Groceries Budget Cap (Rs.)</label>
+                        <input type="number" value={foodExpense} onChange={(e) => setFoodExpense(e.target.value)} disabled={!isEditingBudget} />
+                      </div>
+                      <div className="auth-field">
+                        <label>🚗 Commute & Travel Budget Cap (Rs.)</label>
+                        <input type="number" value={travelExpense} onChange={(e) => setTravelExpense(e.target.value)} disabled={!isEditingBudget} />
+                      </div>
+                      <div className="auth-field">
+                        <label>⚡ Household Utilities Budget Cap (Rs.)</label>
+                        <input type="number" value={utilitiesExpense} onChange={(e) => setUtilitiesExpense(e.target.value)} disabled={!isEditingBudget} />
+                      </div>
+                      <div className="auth-field">
+                        <label>🍿 Entertainment Budget Cap (Rs.)</label>
+                        <input type="number" value={entertainmentExpense} onChange={(e) => setEntertainmentExpense(e.target.value)} disabled={!isEditingBudget} />
+                      </div>
+                      <div className="auth-field">
+                        <label>💰 Savings Investments Allocation (Rs.)</label>
+                        <input type="number" value={savingsExpense} onChange={(e) => setSavingsExpense(e.target.value)} disabled={!isEditingBudget} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="budget-analytics-visual-side">
+                    <div className="info-alert-callout text-purple bg-purple-light" style={{padding: "20px", borderRadius: "12px", marginBottom: "20px"}}>
+                      <h4>Aggregated Spending Ceiling Matrix</h4>
+                      <p style={{fontSize: "24px", fontWeight: "700", margin: "8px 0"}}>{money(aggregatedAllocatedBudgets)}</p>
+                      <p style={{fontSize: "12px"}}>Baseline Disposable Allocation Buffer Remaining: <strong>{money(availableNetBalance)}</strong></p>
+                    </div>
+
+                    <h4 style={{marginBottom: "12px", fontSize: "14px", fontWeight: "600"}}>Active Boundary Usage Profiles</h4>
+                    {Object.keys(budgetLimitsMap).map((key) => {
+                      const limit = budgetLimitsMap[key];
+                      const spent = dynamicCategoryExpenses[key] || 0;
+                      const ratio = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
+                      return (
+                        <div className="metric-row-card" key={key} style={{ marginBottom: "12px" }}>
+                          <div className="metric-header"><strong>{key} Pool</strong><span>{money(spent)} / {money(limit)}</span></div>
+                          <div className="progress-bar-track"><div className="progress-bar-fill" style={{ width: `${ratio}%`, background: ratio > 90 ? "#ef4444" : "#3b82f6" }} /></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB VIEW 3: REPORTS AND PERFORMANCE INSIGHT METRICS */}
+            {activeTab === 3 && (
+              <div className="view-container-fade" style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+                <div className="panel-card">
+                  <h2 className="panel-title"><BarChart2 className="inline-icon icon-sm text-purple" /> Algorithmic Accounting & Variance Reports</h2>
+                  <p className="panel-subtitle">Analytical summaries tracking capital performance and velocity metrics.</p>
+                </div>
+
+                <div className="reports-visual-layout-grid">
+                  <div className="panel-card analytics-accent-card">
+                    <h3>Inflow vs Outflow Structural Density</h3>
+                    <p className="panel-subtitle">Visual distribution mapping pipeline deployment metrics.</p>
+                    <div className="mock-chart-container" style={{marginTop: "20px", padding: "30px 10px", background: "#f8fafc", borderRadius: "12px", textAlign: "center"}}>
+                      <div style={{display: "flex", gap: "24px", justifyContent: "center", alignItems: "flex-end", height: "140px"}}>
+                        <div style={{width: "45px", height: "130px", background: "#10b981", borderRadius: "6px 6px 0 0"}}><span style={{color: "#fff", fontSize: "10px", display: "block", marginTop: "10px"}}>IN</span></div>
+                        <div style={{width: "45px", height: `${Math.min(130, Math.round((overallExpensesLogged / (overallIncomeLogged || 1)) * 130)) || 20}px`, background: "#ef4444", borderRadius: "6px 6px 0 0"}}><span style={{color: "#fff", fontSize: "10px", display: "block", marginTop: "10px"}}>OUT</span></div>
+                      </div>
+                      <div className="metric-footer" style={{justifyContent: "center", gap: "30px", marginTop: "15px"}}>
+                        <span>🟢 Credits: {money(overallIncomeLogged)}</span>
+                        <span>🔴 Debits: {money(overallExpensesLogged)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="panel-card">
+                    <h3>Accounting Health Parameters</h3>
+                    <div className="report-data-rows-stack" style={{marginTop: "20px", display: "flex", flexDirection: 'column', gap: "14px"}}>
+                      <div className="report-metric-item" style={{display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9'}}>
+                        <span style={{fontSize: "14px", color: "#64748b"}}>Expense-to-Income Savings Volatility Ratio</span>
+                        <strong style={{fontSize: "14px"}}>{overallIncomeLogged > 0 ? ((overallExpensesLogged / overallIncomeLogged) * 100).toFixed(1) : 0}%</strong>
+                      </div>
+                      <div className="report-metric-item" style={{display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9'}}>
+                        <span style={{fontSize: "14px", color: "#64748b"}}>Configured Structural Burn Ceiling</span>
+                        <strong style={{fontSize: "14px"}}>{money(aggregatedAllocatedBudgets)}</strong>
+                      </div>
+                      <div className="report-metric-item" style={{display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9'}}>
+                        <span style={{fontSize: "14px", color: "#64748b"}}>Target Savings Convergence Trajectory</span>
+                        <strong style={{fontSize: "14px", color: availableNetBalance >= Number(savingsExpense) ? "#16a34a" : "#ca8a04"}}>
+                          {availableNetBalance >= Number(savingsExpense) ? "TARGET MET" : "UNDER BOUNDS"}
+                        </strong>
+                      </div>
+                    </div>
+                    
+                    <button className="add-expense-btn" style={{marginTop: "24px", background: "#4f46e5", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'} } onClick={() => alert("Statement data written into PDF stream layout.")}>
+                      <FileText className="icon-sm" /> Generate Certified Fiscal Audit Statement
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB VIEW 4: PLATFORM CONFIGURATION SETTINGS PANEL */}
+            {activeTab === 4 && (
+              <div className="panel-card view-container-fade">
+                <div className="panel-header border-bottom-header">
+                  <div>
+                    <h2 className="panel-title"><Settings className="inline-icon icon-sm text-muted" /> Preferences & Workspace Context</h2>
+                    <p className="panel-subtitle">Configure workspace environment variables and authentication gates.</p>
+                  </div>
+                </div>
+
+                <div className="settings-layout-workspace" style={{marginTop: "20px", display: 'flex', flexDirection: 'column', gap: '24px'}}>
+                  <div className="settings-toggle-row" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#f8fafc', borderRadius: '12px'}}>
+                    <div>
+                      <strong style={{fontSize: '15px', display: 'block'}}>Enable Algorithmic Threshold Real-Time Alerts</strong>
+                      <span style={{fontSize: '13px', color: '#64748b'}}>Receive browser intercept notifications when category pools pass 85% capacity limits.</span>
+                    </div>
+                    <input type="checkbox" checked={enableNotifications} onChange={(e) => setEnableNotifications(e.target.checked)} style={{width: '20px', height: '20px', cursor: 'pointer'}} />
+                  </div>
+
+                  <div className="settings-toggle-row" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#f8fafc', borderRadius: '12px'}}>
+                    <div>
+                      <strong style={{fontSize: '15px', display: 'block'}}>Enforce Hardware Two-Factor Session Protection (2FA)</strong>
+                      <span style={{fontSize: '13px', color: '#64748b'}}>Require secure authentication authorization hashes upon executing ledger deletions.</span>
+                    </div>
+                    <input type="checkbox" checked={enableTwoFactor} onChange={(e) => setEnableTwoFactor(e.target.checked)} style={{width: '20px', height: '20px', cursor: 'pointer'}} />
+                  </div>
+
+                  <div className="settings-toggle-row" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#f8fafc', borderRadius: '12px'}}>
+                    <div>
+                      <strong style={{fontSize: '15px', display: 'block'}}>System Theme Workspace Skin Profile</strong>
+                      <span style={{fontSize: '13px', color: '#64748b'}}>Toggle systemic visual color tokens applied to structural panels.</span>
+                    </div>
+                    <select className="dashboard-panel-select" style={{width: '180px', height: '40px'}} value={themeMode} onChange={(e) => setThemeMode(e.target.value)}>
+                      <option value="light">Inter-Light Core</option>
+                      <option value="dark">Slate Obsidian Dark</option>
+                      <option value="high-contrast">Accessible Contrast</option>
+                    </select>
+                  </div>
+
+                  <div style={{paddingTop: "20px", borderTop: "1px solid #e2e8f0", display: 'flex', justifyContent: 'flex-end'}}>
+                    <button className="add-expense-btn" style={{width: "200px"} } onClick={() => alert("Platform parameters updated.")}>
+                      Commit Preferences
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB VIEW 5: SECURITY PROFILE & MANAGEMENT CARD */}
+            {activeTab === 5 && (
+              <div className="panel-card view-container-fade">
+                <div className="panel-header border-bottom-header">
+                  <div>
+                    <h2 className="panel-title"><User className="inline-icon icon-sm text-teal" /> Personal Identity Profile Registry</h2>
+                    <p className="panel-subtitle">Manage system credential details, localization variables, and secure communication channels.</p>
+                  </div>
+                  <button type="button" className="profile-action-toggle-btn" onClick={() => setIsEditingProfile(!isEditingProfile)}>
+                    {isEditingProfile ? <><Check className="icon-sm" /> Read-Only View</> : <><Edit2 className="icon-sm" /> Edit Registration Fields</>}
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveProfile} className="profile-workspace-form" style={{marginTop: "24px"}}>
+                  <div className="profile-avatar-banner-block" style={{display: 'flex', alignItems: 'center', gap: '20px', paddingBottom: '24px', borderBottom: '1px solid #f1f5f9', marginBottom: '24px'}}>
+                    <div className="profile-image-frame-placeholder" style={{width: '70px', height: '70px', borderRadius: '50%', background: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '700'}}>
+                      {profileName ? profileName.charAt(0).toUpperCase() : "U"}
+                    </div>
+                    <div>
+                      <h3 style={{fontSize: '18px', fontWeight: '600'}}>{profileName}</h3>
+                      <p style={{fontSize: '13px', color: '#64748b'}}>Identity Account Mapping Code: <code style={{background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px'}}>USR-2026-8942</code></p>
+                    </div>
+                  </div>
+
+                  <div className="setup-grid-fields">
+                    <div className="auth-field">
+                      <label>Authenticated Full Identity Label Name</label>
+                      <input type="text" value={profileName} onChange={(e) => setProfileName(e.target.value)} disabled={!isEditingProfile} className={!isEditingProfile ? "disabled-profile-input" : ""} required />
+                    </div>
+
+                    <div className="auth-field">
+                      <label>Communication Terminal Channel (Phone Number)</label>
+                      <input type="tel" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} disabled={!isEditingProfile} className={!isEditingProfile ? "disabled-profile-input" : ""} required />
+                    </div>
+
+                    <div className="auth-field">
+                      <label>Registered Date of Birth Context</label>
+                      <input type="date" value={profileDob} onChange={(e) => setProfileDob(e.target.value)} disabled={!isEditingProfile} className={!isEditingProfile ? "disabled-profile-input" : ""} required />
+                    </div>
+
+                    <div className="auth-field">
+                      <label>Workspace Local Currency Token Identifier</label>
+                      <select value={profileCurrency} onChange={(e) => setProfileCurrency(e.target.value)} disabled={!isEditingProfile} className={!isEditingProfile ? "disabled-profile-input" : ""} required>
+                        <option value="INR">INR - Indian Rupee (Rs.)</option>
+                        <option value="USD">USD - US Dollar ($)</option>
+                        <option value="EUR">EUR - Euro (€)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="auth-field" style={{marginTop: "16px"}}>
+                    <label>System Access Login Username / E-mail Mapping</label>
+                    <input type="email" value={email || "user@domain.com"} disabled className="disabled-profile-input" style={{background: "#f1f5f9", cursor: "not-allowed"}} />
+                    <span style={{fontSize: "11px", color: "#94a3b8", display: "block", marginTop: "4px"}}>System access handles cannot be altered without platform root administrative access.</span>
+                  </div>
+
+                  {isEditingProfile && (
+                    <div style={{marginTop: "24px", display: 'flex', justifyContent: 'flex-end'}}>
+                      <button type="submit" className="add-expense-btn" style={{width: '220px', background: '#10b981'}}>
+                        Save Updated Identity Details
+                      </button>
+                    </div>
+                  )}
+                </form>
+              </div>
+            )}
+
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER BLOCK: ROLE 2 (ADMIN) DASHBOARD ---
+  if (isLoggedIn && Number(role) === 2) {
+    return (
+      <DashboardShell activeRole="2" onLogout={handleLogout}>
+        <div className="stats-grid">
+          <StatCard icon={Users} label="Total Users" value="1,284" note="186 active today" tone="blue" trend="+24" />
+          <StatCard icon={Database} label="Storage Used" value="846 GB" note="92% of provisioned storage" tone="green" trend="+6%" />
+          <StatCard icon={Activity} label="System Uptime" value="99.8%" note="Last 30 days" tone="purple" trend="+0.4%" />
+          <StatCard icon={Server} label="Active Servers" value="12 / 15" note="3 require attention" tone="orange" trend="-3" />
+        </div>
+
+        <div className="dashboard-grid-two-col">
+          <div className="panel-card">
+            <h2 className="panel-title">System Alerts</h2>
+            <div className="list-wrapper">
+              {[
+                { type: "warning", message: "Database backup scheduled tonight at 2:00 AM", time: "2 hours ago" },
+                { type: "error", message: "High CPU usage detected on Server 3", time: "4 hours ago" },
+                { type: "success", message: "Security patch applied successfully", time: "5 hours ago" },
+                { type: "warning", message: "SSL certificate expires in 30 days", time: "1 day ago" },
+              ].map((alert, index) => (
+                <div key={index} className="alert-item" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                  <div className={`alert-icon-box box-${alert.type}`}>
+                    {alert.type === "success" ? <CheckCircle className="icon-sm text-green" /> : <AlertTriangle className={`icon-sm ${alert.type === "error" ? "text-red" : "text-yellow"}`} />}
+                  </div>
+                  <div className="alert-body">
+                    <p className="alert-message" style={{ fontSize: "14px", fontWeight: "500" }}>{alert.message}</p>
+                    <p className="alert-time" style={{ fontSize: "12px", color: "#667085" }}>{alert.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel-card">
+            <h2 className="panel-title">Quick Actions</h2>
+            <div className="actions-button-stack" style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "15px" }}>
+              <button className="nav-item active" style={{ justifyContent: "flex-start" }} type="button"><Users className="icon-sm" /> <span>Manage Users</span></button>
+              <button className="nav-item" style={{ justifyContent: "flex-start", background: "#f1f5f9" }} type="button"><Settings className="icon-sm" /> <span>System Settings</span></button>
+              <button className="nav-item" style={{ justifyContent: "flex-start", background: "#f1f5f9" }} type="button"><Database className="icon-sm" /> <span>Database Admin</span></button>
+            </div>
+          </div>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  // --- RENDER BLOCK: ROLE 3 (MANAGER) DASHBOARD ---
+  if (isLoggedIn && Number(role) === 3) {
+    return (
+      <div className="dashboard-container app-dashboard theme-light">
+        <aside className="dashboard-sidebar">
+          <div className="sidebar-brand">
+            <img src={logoImg} alt="Logo" />
+            <div>
+              <strong>Finance OS</strong>
+              <span>Manager Node</span>
+            </div>
+          </div>
+
+          <nav className="sidebar-nav">
+            <button className="nav-item active">
+              <Activity className="icon-sm" />
+              <span>Manager Pulse</span>
+            </button>
+            <button className="nav-item">
+              <Users className="icon-sm" />
+              <span>Team Ledgers</span>
+            </button>
+            <button className="nav-item">
+              <DollarSign className="icon-sm" />
+              <span>Budget Requests</span>
+            </button>
+          </nav>
+
+          <div className="sidebar-brief">
+            <span>Authorization Level</span>
+            <strong>REGIONAL MANAGER</strong>
+          </div>
+        </aside>
+
+        <div className="dashboard-workspace">
+          <header className="dashboard-header">
+            <div className="header-content">
+              <div>
+                <span className="dashboard-eyebrow">Operations Oversight</span>
+                <h1 className="welcome-title">Welcome Back, Finance Manager</h1>
+              </div>
+              <button onClick={handleLogout} className="logout-btn">
+                <LogOut className="icon-sm" /> Exit
+              </button>
+            </div>
+          </header>
+
+          <main className="dashboard-main">
+            <div className="stats-grid">
+              <div className="stats-card">
+                <p className="card-label">Total Department Disbursed</p>
+                <p className="card-value">Rs. 4,85,000.00</p>
+                <span className="category-capsule-tag">Active This Quarter</span>
+              </div>
+              <div className="stats-card">
+                <p className="card-label">Pending Approval Requests</p>
+                <p className="card-value" style={{ color: "#d97706" }}>3 Flagged Items</p>
+              </div>
+              <div className="stats-card">
+                <p className="card-label">Supervised Active Users</p>
+                <p className="card-value">8 Team Nodes</p>
+              </div>
+            </div>
+
+            <div className="panel-card" style={{ marginTop: "24px" }}>
+              <h2 className="panel-title">Budget Override Requests</h2>
+              <p className="panel-subtitle">Review pending threshold requests.</p>
+              <div className="table-scroll-frame">
+                <table className="enterprise-data-table">
+                  <thead>
+                    <tr>
+                      <th>Team Member</th>
+                      <th>Category</th>
+                      <th>Requested Amount</th>
+                      <th>Reason</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Amit Sharma</td>
+                      <td>Transport</td>
+                      <td>+ Rs. 5,000</td>
+                      <td>Client travel expenses</td>
+                      <td>
+                        <button style={{ background: "green", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", marginRight: "10px" }}>Approve</button>
+                        <button style={{ background: "red", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px" }}>Reject</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER BLOCK: UNAUTHENTICATED ROUTER / GATEWAY LANDING PANELS ---
+  if (!isLoggedIn) {
+    const isSignup = currentPage === "signup";
+
+    return (
+      <main className="auth-page">
+        <button className="auth-brand" type="button" onClick={() => { window.location.href = "/"; }}>
+          <img src={logoImg} alt="Money Manager logo" />
+          <span>Money Manager</span>
+        </button>
+
+        <section className="auth-panel">
+          <div className="auth-copy">
+            <span className="auth-kicker">{isSignup ? "Create workspace" : "Welcome back"}</span>
+            <h1>{isSignup ? "Build smarter financial habits." : "Take control of your money."}</h1>
+            <p>
+              {isSignup
+                ? "Create your account, choose your role, and enter the workspace designed for your finance flow."
+                : "Access your role-based dashboard for budgets, transactions, approvals, and system activity."}
+            </p>
+            <div className="auth-preview-card">
+              <img src={isSignup ? growthImg : analyticsImg} alt="Finance dashboard preview" />
+              <div>
+                <strong>{isSignup ? "Set goals faster" : "Track every signal"}</strong>
+                <span>{isSignup ? "Budgets, savings, and teams in one place." : "Income, spending, and approvals stay visible."}</span>
+              </div>
+            </div>
+          </div>
+
+          <form className={isSignup ? "auth-card signup-auth-card" : "auth-card"} onSubmit={isSignup ? handleSignUp : handleSignIn}>
+            <div className="auth-card-header">
+              <span>{isSignup ? "Sign up" : "Login"}</span>
+              <h2>{isSignup ? "Create an account" : "Enter your account"}</h2>
+            </div>
+
+            {isSignup && (
+              <>
+                <div className="auth-field">
+                  <label>Full Name</label>
+                  <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                </div>
+                <div className="auth-field two-col-field">
+                  <div>
+                    <label>Phone Number</label>
+                    <input type="tel" placeholder="+91 9876543210" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
+                  </div>
+                  <div>
+                    <label>Date of Birth</label>
+                    <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="auth-field">
+              <label>E-mail address</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+
+            <div className="auth-field">
+              <label>Password</label>
+              <input type="password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </div>
+
+            {isSignup && (
+              <>
+                <div className="auth-field">
+                  <label>Confirm Password</label>
+                  <input type="password" placeholder="At least 8 characters" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                </div>
+                <div className="auth-field">
+                  <label>Currency Preference</label>
+                  <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                    <option value="INR">INR - Indian Rupee</option>
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="EUR">EUR - Euro</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            <div className="auth-field">
+              <label>Role</label>
+              <select value={role} onChange={(e) => setRole(e.target.value)} required>
+                <option value="">Select a role</option>
+                <option value="1">User</option>
+                <option value="2">Admin</option>
+                <option value="3">Manager</option>
+              </select>
+            </div>
+
+            {isSignup && (
+              <div className="terms-checkbox auth-terms">
+                <input type="checkbox" id="terms" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} required />
+                <label htmlFor="terms" style={{marginLeft: "8px"}}>I agree to the Terms & Conditions</label>
+              </div>
+            )}
+
+            <button type="submit" className="auth-submit">{isSignup ? "Create account" : "Login"}</button>
+
+            <div className="auth-switch">
+              {isSignup ? "Already have an account? " : "Don't have an account? "}
+              <button type="button" onClick={() => switchAuthPage(isSignup ? "signin" : "signup")}>
+                {isSignup ? "Login" : "Sign up"}
+              </button>
+            </div>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
+  return null;
+}
+
+const DashboardShell = ({ activeRole, onLogout, children }) => {
+  const meta = roleMeta[activeRole];
+  return (
+    <div className="dashboard-container app-dashboard">
+      <aside className="dashboard-sidebar">
+        <div className="sidebar-brand">
+          <img src={logoImg} alt="Money Manager logo" />
+          <div><strong>Money Manager</strong><span>Operations OS</span></div>
+        </div>
+        <div className="sidebar-brief"><span>Admin System Active</span></div>
+      </aside>
+      <div className="dashboard-workspace">
+        <header className="dashboard-header">
+          <div className="header-content">
+            <div>
+              <span className="dashboard-eyebrow">{meta?.eyebrow}</span>
+              <h1 className="welcome-title">{meta?.heading}</h1>
+            </div>
+            <button onClick={onLogout} className="logout-btn">Logout</button>
+          </div>
+        </header>
+        <main className="dashboard-main">{children}</main>
+      </div>
+    </div>
+  );
+};
+
+export default App;
