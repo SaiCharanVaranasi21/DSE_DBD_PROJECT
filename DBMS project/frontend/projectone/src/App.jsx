@@ -41,7 +41,7 @@ import {
 import logoImg from "./assets/logo.png";
 import savingsImg from "./assets/savings.png";
 
-const GATEWAY_URL = "http://localhost:8000";
+const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || "http://localhost:8000";
 
 const money = (value) => `Rs. ${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, HelpCircle } from "lucide-react";
 import logoImg from "../logo.png";
 
-const GATEWAY_URL = "http://localhost:8000";
+const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || "http://localhost:8000";
 
 const Onboarding = ({ userId, onComplete, token, onLogout }) => {
   const [step, setStep] = useState(1);
